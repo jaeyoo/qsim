@@ -94,7 +94,7 @@ TEST(ExpectTest, ExpectationValue) {
   Fuser::Parameter param;
   param.max_fused_size = 4;
 
-  State tmp_state = state_space.Create(num_qubits);
+  State tmp_state = state_space.Null();
 
   for (unsigned k = 1; k <= 6; ++k) {
     std::vector<OpString<GateQSim<fp_type>>> strings;
@@ -120,8 +120,12 @@ TEST(ExpectTest, ExpectationValue) {
       }
     }
 
-    auto evala = ExpectationValue<Fuser>(param, strings, state_space, simulator,
-                                         state, tmp_state);
+    if (k == 2) {
+      tmp_state = state_space.Create(num_qubits - 2);
+    }
+
+    auto evala = ExpectationValue<IO, Fuser>(param, strings, state_space,
+                                             simulator, state, tmp_state);
 
     EXPECT_NEAR(std::real(evala), expected_real[k - 1], 1e-6);
     EXPECT_NEAR(std::imag(evala), 0, 1e-8);
@@ -131,6 +135,22 @@ TEST(ExpectTest, ExpectationValue) {
     EXPECT_NEAR(std::real(evalb), expected_real[k - 1], 1e-6);
     EXPECT_NEAR(std::imag(evalb), 0, 1e-8);
   }
+
+  double w_re = 0.7;
+  double w_im = 0.3;
+
+  std::vector<OpString<GateQSim<fp_type>>> strings = {{{w_re, w_im}, {}}};
+
+  auto evala = ExpectationValue<IO, Fuser>(param, strings, state_space,
+                                           simulator, state, tmp_state);
+
+  EXPECT_NEAR(std::real(evala), w_re, 1e-8);
+  EXPECT_NEAR(std::imag(evala), w_im, 1e-8);
+
+  auto evalb = ExpectationValue<IO, Fuser>(strings, simulator, state);
+
+  EXPECT_NEAR(std::real(evalb), w_re, 1e-8);
+  EXPECT_NEAR(std::imag(evalb), w_im, 1e-8);
 }
 
 }  // namespace qsim

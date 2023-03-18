@@ -93,6 +93,39 @@ inline void MatrixMultiply(
 }
 
 /**
+ * Multiplies two gate matrices of equal size: m2 = m1^\dagger m2.
+ * @q Number of gate qubits. The number of matrix rows (columns) is 2^q.
+ * @m1 Matrix m1.
+ * @m2 Input matrix m2. Output product of matrices m2 = m1 m2.
+ */
+template <typename fp_type1, typename fp_type2>
+inline void MatrixDaggerMultiply(
+    unsigned q, const Matrix<fp_type1>& m1, Matrix<fp_type2>& m2) {
+  Matrix<fp_type2> mt = m2;
+  unsigned n = unsigned{1} << q;
+
+  for (unsigned i = 0; i < n; ++i) {
+    for (unsigned j = 0; j < n; ++j) {
+      fp_type2 re = 0;
+      fp_type2 im = 0;
+
+      for (unsigned k = 0; k < n; ++k) {
+        fp_type2 r1 = m1[2 * (n * k + i)];
+        fp_type2 i1 = m1[2 * (n * k + i) + 1];
+        fp_type2 r2 = mt[2 * (n * k + j)];
+        fp_type2 i2 = mt[2 * (n * k + j) + 1];
+
+        re += r1 * r2 + i1 * i2;
+        im += r1 * i2 - i1 * r2;
+      }
+
+      m2[2 * (n * i + j)] = re;
+      m2[2 * (n * i + j) + 1] = im;
+    }
+  }
+}
+
+/**
  * Multiplies two gate matrices: m2 = m1 m2. The size of m1 should not exceed
  *   the size of m2.
  * @mask1 Qubit mask that specifies the subset of qubits m1 acts on.
@@ -139,7 +172,7 @@ inline void MatrixMultiply(unsigned mask1,
 }
 
 /**
- * Multiply a matrix by a scalar value.
+ * Multiply a matrix by a real scalar value.
  * @c Scalar value.
  * @m Input matrix to be multiplied. Output matrix.
  */
@@ -147,6 +180,23 @@ template <typename fp_type1, typename fp_type2>
 inline void MatrixScalarMultiply(fp_type1 c, Matrix<fp_type2>& m) {
   for (unsigned i = 0; i < m.size(); ++i) {
     m[i] *= c;
+  }
+}
+
+/**
+ * Multiply a matrix by a complex scalar value.
+ * @re Real part of scalar value.
+ * @im Imaginary part of scalar value.
+ * @m Input matrix to be multiplied. Output matrix.
+ */
+template <typename fp_type1, typename fp_type2>
+inline void MatrixScalarMultiply(
+    fp_type1 re, fp_type1 im, Matrix<fp_type2>& m) {
+  for (unsigned i = 0; i < m.size() / 2; ++i) {
+    fp_type2 re0 = m[2 * i + 0];
+    fp_type2 im0 = m[2 * i + 1];
+    m[2 * i + 0] = re * re0 - im * im0;
+    m[2 * i + 1] = re * im0 + im * re0;
   }
 }
 

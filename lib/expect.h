@@ -42,18 +42,30 @@ struct OpString {
  * @param ket Temporary state vector.
  * @return The computed expectation value.
  */
-template <typename Fuser, typename Simulator, typename Gate>
+template <typename IO, typename Fuser, typename Gate, typename Simulator>
 std::complex<double> ExpectationValue(
     const typename Fuser::Parameter& param,
     const std::vector<OpString<Gate>>& strings,
-    const typename Simulator::StateSpace& ss, const Simulator& simulator,
-    const typename Simulator::State& state, typename Simulator::State& ket) {
+    const typename Simulator::StateSpace& state_space,
+    const Simulator& simulator, const typename Simulator::State& state,
+    typename Simulator::State& ket) {
   std::complex<double> eval = 0;
 
-  for (const auto& str : strings) {
-    if (str.ops.size() == 0) continue;
+  if (state_space.IsNull(ket) || ket.num_qubits() < state.num_qubits()) {
+    ket = state_space.Create(state.num_qubits());
+    if (state_space.IsNull(ket)) {
+      IO::errorf("not enough memory: is the number of qubits too large?\n");
+      return eval;
+    }
+  }
 
-    ss.Copy(state, ket);
+  for (const auto& str : strings) {
+    if (str.ops.size() == 0) {
+      eval += str.weight;
+      continue;
+    }
+
+    state_space.Copy(state, ket);
 
     if (str.ops.size() == 1) {
       const auto& op = str.ops[0];
@@ -70,7 +82,7 @@ std::complex<double> ExpectationValue(
       }
     }
 
-    eval += str.weight * ss.InnerProduct(state, ket);
+    eval += str.weight * state_space.InnerProduct(state, ket);
   }
 
   return eval;
@@ -88,7 +100,7 @@ std::complex<double> ExpectationValue(
  * @param state The state of the system.
  * @return The computed expectation value.
  */
-template <typename IO, typename Fuser, typename Simulator, typename Gate>
+template <typename IO, typename Fuser, typename Gate, typename Simulator>
 std::complex<double> ExpectationValue(
     const std::vector<OpString<Gate>>& strings,
     const Simulator& simulator, const typename Simulator::State& state) {
@@ -96,11 +108,10 @@ std::complex<double> ExpectationValue(
 
   typename Fuser::Parameter param;
   param.max_fused_size = 6;
-
   for (const auto& str : strings) {
-    if (str.ops.size() == 0) continue;
-
-    if (str.ops.size() == 1) {
+    if (str.ops.size() == 0) {
+      eval += str.weight;
+    } else if (str.ops.size() == 1) {
       const auto& op = str.ops[0];
       auto r = simulator.ExpectationValue(op.qubits, op.matrix.data(), state);
       eval += str.weight * r;
@@ -123,8 +134,8 @@ std::complex<double> ExpectationValue(
         break;
       }
 
-      auto matrix = CalculateFusedMatrix<typename Simulator::fp_type>(fgate);
-      auto r = simulator.ExpectationValue(fgate.qubits, matrix.data(), state);
+      auto r = simulator.ExpectationValue(
+          fgate.qubits, fgate.matrix.data(), state);
       eval += str.weight * r;
     }
   }

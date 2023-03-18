@@ -190,23 +190,20 @@ int main(int argc, char* argv[]) {
   using fp_type = float;
 
   struct Factory {
-    using Simulator = qsim::SimulatorCUDA<fp_type>;
+    using Simulator = qsim::SimulatorCUDA<float>;
     using StateSpace = Simulator::StateSpace;
 
-    Factory(const StateSpace::Parameter& param1,
-            const Simulator::Parameter& param2)
-        : param1(param1), param2(param2) {}
+    Factory(const StateSpace::Parameter& param) : param(param) {}
 
     StateSpace CreateStateSpace() const {
-      return StateSpace(param1);
+      return StateSpace(param);
     }
 
     Simulator CreateSimulator() const {
-      return Simulator(param2);
+      return Simulator();
     }
 
-    const StateSpace::Parameter& param1;
-    const Simulator::Parameter& param2;
+    const StateSpace::Parameter& param;
   };
 
   using Simulator = Factory::Simulator;
@@ -235,14 +232,12 @@ int main(int argc, char* argv[]) {
   }
 
   StateSpace::Parameter param1;
-  Simulator::Parameter param2;
-  Factory factory(param1, param2);
+  Factory factory(param1);
 
   Simulator simulator = factory.CreateSimulator();
   StateSpace state_space = factory.CreateStateSpace();
 
   State state = state_space.Create(circuit.num_qubits);
-  State scratch = state_space.Null();
 
   if (state_space.IsNull(state)) {
     IO::errorf("not enough memory: is the number of qubits too large?\n");
@@ -252,6 +247,7 @@ int main(int argc, char* argv[]) {
   typename QTSimulator::Parameter param3;
   param3.max_fused_size = opt.max_fused_size;
   param3.verbosity = opt.verbosity;
+  param3.apply_last_deferred_ops = true;
 
   auto channel1 = AmplitudeDampingChannel<fp_type>(opt.amplitude_damp_const);
   auto channel2 = PhaseDampingChannel<fp_type>(opt.phase_damp_const);
@@ -263,6 +259,11 @@ int main(int argc, char* argv[]) {
   std::vector<std::vector<std::vector<std::complex<double>>>> results;
   results.reserve(opt.num_trajectories);
 
+  QTSimulator::Stat stat;
+
+  using CleanResults = std::vector<std::vector<std::complex<double>>>;
+  CleanResults primary_results(noisy_circuits.size());
+
   for (unsigned i = 0; i < opt.num_trajectories; ++i) {
     results.push_back({});
     results[i].reserve(noisy_circuits.size());
@@ -272,19 +273,30 @@ int main(int argc, char* argv[]) {
     auto seed = noisy_circuits.size() * (i + opt.traj0);
 
     for (unsigned s = 0; s < noisy_circuits.size(); ++s) {
-      std::vector<uint64_t> stat;
       if (!QTSimulator::RunOnce(param3, noisy_circuits[s], seed++,
-                                state_space, simulator, scratch, state,
-                                stat)) {
+                                state_space, simulator, state, stat)) {
         return 1;
       }
 
       results[i].push_back({});
       results[i][s].reserve(observables.size());
 
-      for (const auto& obs : observables) {
-        results[i][s].push_back(
-            ExpectationValue<IO, Fuser>(obs, simulator, state));
+      primary_results[s].reserve(observables.size());
+
+      if (stat.primary && !primary_results[s].empty()) {
+        for (std::size_t k = 0; k < observables.size(); ++k) {
+          results[i][s].push_back(primary_results[s][k]);
+        }
+      } else {
+        for (const auto& obs : observables) {
+          auto result = ExpectationValue<IO, Fuser>(obs, simulator, state);
+          results[i][s].push_back(result);
+
+          if (stat.primary) {
+            primary_results[s].push_back(result);
+            param3.apply_last_deferred_ops = false;
+          }
+        }
       }
     }
   }

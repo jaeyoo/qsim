@@ -19,28 +19,24 @@ if(APPLE)
     link_directories("/usr/local/lib" "/usr/local/opt/llvm/lib")
 endif()
 
-include(FetchContent)
-
-FetchContent_Declare(
-  pybind11
-  GIT_REPOSITORY https://github.com/pybind/pybind11
-  GIT_TAG v2.2.4
-)
-FetchContent_GetProperties(pybind11)
-if(NOT pybind11_POPULATED)
-  FetchContent_Populate(pybind11)
-  add_subdirectory(${pybind11_SOURCE_DIR} ${pybind11_BINARY_DIR})
-endif()
+INCLUDE(../GetPybind11.cmake)
 
 if(has_nvcc STREQUAL "")
   pybind11_add_module(qsim_decide decide.cpp)
 else()
-  find_package(PythonLibs 3.6 REQUIRED)
+  find_package(PythonLibs 3.7 REQUIRED)
   find_package(CUDA REQUIRED)
 
   include_directories(${PYTHON_INCLUDE_DIRS} ${pybind11_SOURCE_DIR}/include)
 
   cuda_add_library(qsim_decide MODULE decide.cpp)
+
+  if(DEFINED ENV{CUQUANTUM_DIR})
+      target_compile_options(qsim_decide PRIVATE
+          $<$<COMPILE_LANGUAGE:CUDA>:-D__CUSTATEVEC__>
+      )
+  endif()
+
   set_target_properties(qsim_decide PROPERTIES
         PREFIX "${PYTHON_MODULE_PREFIX}"
         SUFFIX "${PYTHON_MODULE_EXTENSION}"

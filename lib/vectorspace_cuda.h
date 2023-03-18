@@ -92,7 +92,7 @@ class VectorSpaceCUDA {
   }
 
   // It is the client's responsibility to make sure that p has at least
-  // 2 * 2^num_qubits elements.
+  // Impl::MinSize(num_qubits) elements.
   static Vector Create(fp_type* p, unsigned num_qubits) {
     return Vector{Pointer{p, &detail::do_not_free}, num_qubits};
   }
@@ -122,7 +122,7 @@ class VectorSpaceCUDA {
   }
 
   // It is the client's responsibility to make sure that dest has at least
-  // 2 * 2^src.num_qubits() elements.
+  // Impl::MinSize(src.num_qubits()) elements.
   bool Copy(const Vector& src, fp_type* dest) const {
     cudaMemcpy(dest, src.get(),
                sizeof(fp_type) * Impl::MinSize(src.num_qubits()),
@@ -132,13 +132,25 @@ class VectorSpaceCUDA {
   }
 
   // It is the client's responsibility to make sure that src has at least
-  // 2 * 2^dest.num_qubits() elements.
+  // Impl::MinSize(dest.num_qubits()) elements.
   bool Copy(const fp_type* src, Vector& dest) const {
     cudaMemcpy(dest.get(), src,
                sizeof(fp_type) * Impl::MinSize(dest.num_qubits()),
                cudaMemcpyHostToDevice);
 
     return true;
+  }
+
+  // It is the client's responsibility to make sure that src has at least
+  // min(size, Impl::MinSize(dest.num_qubits())) elements.
+  bool Copy(const fp_type* src, uint64_t size, Vector& dest) const {
+    size = std::min(size, Impl::MinSize(dest.num_qubits()));
+    cudaMemcpy(dest.get(), src, sizeof(fp_type) * size, cudaMemcpyHostToDevice);
+    return true;
+  }
+
+  void DeviceSync() {
+    cudaDeviceSynchronize();
   }
 
  protected:

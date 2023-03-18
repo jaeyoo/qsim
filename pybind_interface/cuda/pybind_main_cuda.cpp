@@ -27,20 +27,21 @@ namespace qsim {
       unsigned num_sim_threads,
       unsigned num_state_threads,
       unsigned num_dblocks
-    ) : ss_params{num_state_threads, num_dblocks},
-        sim_params{num_sim_threads} {}
+    ) : ss_params{num_state_threads, num_dblocks} {}
 
     StateSpace CreateStateSpace() const {
       return StateSpace(ss_params);
     }
 
     Simulator CreateSimulator() const {
-      return Simulator(sim_params);
+      return Simulator();
     }
 
-    const StateSpace::Parameter ss_params;
-    const Simulator::Parameter sim_params;
+    StateSpace::Parameter ss_params;
   };
+
+  inline void SetFlushToZeroAndDenormalsAreZeros() {}
+  inline void ClearFlushToZeroAndDenormalsAreZeros() {}
 }
 
 #include "../pybind_main.cpp"

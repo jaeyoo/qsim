@@ -5,17 +5,17 @@ sse_copts = ['-msse4']
 
 windows_copts = [
     "/arch:AVX",
-    "/std:c++14",
+    "/std:c++17",
 ]
 
 windows_avx512_copts = [
     "/arch:AVX512",
-    "/std:c++14",
+    "/std:c++17",
 ]
 
 config_setting(
     name = "windows",
-    constraint_values = ["@bazel_tools//platforms:windows"],
+    constraint_values = ["@platforms//os:windows"],
 )
 
 cc_test(
@@ -29,6 +29,23 @@ cc_test(
         "@com_google_googletest//:gtest_main",
         "//lib:bitstring",
     ],
+)
+
+cc_test(
+    name = "channel_test",
+    srcs = ["channel_test.cc"],
+    deps = [
+        "@com_google_googletest//:gtest_main",
+        "//lib:channel",
+        "//lib:formux",
+        "//lib:gates_cirq",
+        "//lib:matrix",
+        "//lib:simulator",
+    ],
+    copts = select({
+        ":windows": windows_copts,
+        "//conditions:default": [],
+    }),
 )
 
 cc_test(
@@ -197,8 +214,10 @@ cc_library(
     }),
     deps = [
         "@com_google_googletest//:gtest_main",
+        "//lib:channel",
         "//lib:channels_cirq",
         "//lib:circuit_noisy",
+        "//lib:expect",
         "//lib:fuser_mqubit",
         "//lib:gate_appl",
         "//lib:gates_cirq",
@@ -265,7 +284,7 @@ cc_library(
         "//lib:gate_appl",
         "//lib:gates_qsim",
         "//lib:io",
-        "//lib:util",
+        "//lib:util_cpu",
     ],
     testonly = 1,
 )
